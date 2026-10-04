@@ -6,11 +6,12 @@ import difflib
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QListWidget, QPlainTextEdit, QComboBox, QListView, QMenu, QTextEdit,
+    QToolTip,
 )
-from PyQt6.QtCore import Qt, QTimer, QPoint, QEvent
+from PyQt6.QtCore import Qt, QTimer, QPoint, QEvent, QMimeData
 from PyQt6.QtGui import (
-    QFont, QTextCursor, QTextCharFormat, QColor, QDrag, QMimeData,
-    QCursor, QToolTip, QAction,
+    QFont, QTextCursor, QTextCharFormat, QColor, QDrag,
+    QCursor, QAction,
 )
 
 from app_styles import CUSTOM_FONT_FAMILIES
