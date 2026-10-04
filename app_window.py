@@ -6,10 +6,10 @@ import unicodedata
 
 from PyQt6.QtWidgets import (
     QMainWindow, QMessageBox, QInputDialog, QDialog, QVBoxLayout,
-    QPushButton, QLabel, QTextEdit, QPixmap, QApplication,
+    QPushButton, QLabel, QTextEdit, QApplication,
 )
 from PyQt6.QtCore import Qt, QTimer, QSettings, QThread
-from PyQt6.QtGui import QFont, QIcon, QColor, QTextCursor, QTextCharFormat
+from PyQt6.QtGui import QFont, QIcon, QColor, QTextCursor, QTextCharFormat, QPixmap
 from PyQt6.QtNetwork import QNetworkInformation
 
 from PyQt6.QtWidgets import QTextEdit as _QTextEditForSelection
