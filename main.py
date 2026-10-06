@@ -63,7 +63,6 @@ if __name__ == "__main__":
         splash = QLabel()
         splash.setWindowFlags(
             Qt.WindowType.SplashScreen
-            | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.FramelessWindowHint
         )
         splash.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -87,7 +86,7 @@ if __name__ == "__main__":
         """)
         splash_label.setText("সহজ-Sahaj-v3.0\n\nLoading, please wait...\n\nDeveloped by Nazmul Hussain")
         splash_pixmap = splash_label.grab()
-        splash = QSplashScreen(splash_pixmap, Qt.WindowType.WindowStaysOnTopHint)
+        splash = QSplashScreen(splash_pixmap)
 
     splash.show()
     app.processEvents()
@@ -145,7 +144,6 @@ if __name__ == "__main__":
         def reveal_window_and_dismiss(cover):
             try:
                 main_window.move(0, 0)
-                app.processEvents()
                 main_window.showMaximized()
                 main_window.raise_()
                 main_window.activateWindow()
@@ -155,6 +153,7 @@ if __name__ == "__main__":
             def _dismiss():
                 try:
                     if cover is not None:
+                        cover.hide()
                         cover.close()
                 except Exception:
                     pass
@@ -176,7 +175,6 @@ if __name__ == "__main__":
             warmup.setFixedSize(450, 250)
         warmup.setWindowFlags(
             Qt.WindowType.SplashScreen
-            | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.FramelessWindowHint
         )
         warmup.setStyleSheet("""
@@ -197,8 +195,13 @@ if __name__ == "__main__":
         except Exception:
             pass
 
+        # Poll every 300 ms; force-reveal after 60 s no matter what
+        state = {"count": 0}
+        MAX_POLLS = 200  # 200 × 300 ms = 60 seconds
+
         def poll():
-            if loaders_busy():
+            state["count"] += 1
+            if loaders_busy() and state["count"] < MAX_POLLS:
                 QTimer.singleShot(300, poll)
             else:
                 reveal_window_and_dismiss(warmup)
