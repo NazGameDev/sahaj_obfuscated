@@ -3,7 +3,7 @@ import os
 import sys
 
 from PyQt6.QtWidgets import (
-    QApplication, QLabel, QSplashScreen,
+    QApplication, QLabel,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFontDatabase, QMovie, QIcon, QPixmap
@@ -14,6 +14,23 @@ from app_utils import resource_path
 from app_styles import set_font_families
 import sahaj_license
 from app_dialogs import ensure_licensed
+
+
+def center_on_screen(widget):
+    """Center a top-level widget on the primary screen."""
+    try:
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            return
+        geo = screen.availableGeometry()
+        w = widget.width()
+        h = widget.height()
+        widget.move(
+            geo.x() + (geo.width() - w) // 2,
+            geo.y() + (geo.height() - h) // 2,
+        )
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
@@ -57,23 +74,26 @@ if __name__ == "__main__":
     set_font_families(available_families)
 
     # --- Splash: shown BEFORE any heavy imports so it appears fast ---
+    # NOTE: We deliberately do NOT use Qt.WindowType.SplashScreen here.
+    # On Windows, Qt's SplashScreen window type implicitly adds
+    # WindowStaysOnTopHint, which would block the user's other windows.
     splash_gif_path = resource_path("splash_animation.gif")
 
+    splash = QLabel()
+    splash.setWindowFlags(
+        Qt.WindowType.FramelessWindowHint
+        | Qt.WindowType.Window
+    )
+
     if os.path.exists(splash_gif_path):
-        splash = QLabel()
-        splash.setWindowFlags(
-            Qt.WindowType.SplashScreen
-            | Qt.WindowType.FramelessWindowHint
-        )
         splash.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         movie = QMovie(splash_gif_path)
         splash.setMovie(movie)
         movie.start()
     else:
-        splash_label = QLabel()
-        splash_label.setFixedSize(450, 250)
-        splash_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        splash_label.setStyleSheet("""
+        splash.setFixedSize(450, 250)
+        splash.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        splash.setStyleSheet("""
             QLabel {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #2C3E50, stop:1 #3498DB);
                 color: white;
@@ -84,10 +104,10 @@ if __name__ == "__main__":
                 padding: 20px;
             }
         """)
-        splash_label.setText("সহজ-Sahaj-v3.0\n\nLoading, please wait...\n\nDeveloped by Nazmul Hussain")
-        splash_pixmap = splash_label.grab()
-        splash = QSplashScreen(splash_pixmap)
+        splash.setText("সহজ-Sahaj-v3.0\n\nLoading, please wait...\n\nDeveloped by Nazmul Hussain")
 
+    splash.adjustSize()
+    center_on_screen(splash)
     splash.show()
     app.processEvents()
 
@@ -168,14 +188,9 @@ if __name__ == "__main__":
             "...Ready in just a moment !"
         )
         warmup.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        try:
-            warmup.setFixedSize(splash.size())
-            warmup.move(splash.geometry().topLeft())
-        except Exception:
-            warmup.setFixedSize(450, 250)
         warmup.setWindowFlags(
-            Qt.WindowType.SplashScreen
-            | Qt.WindowType.FramelessWindowHint
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.Window
         )
         warmup.setStyleSheet("""
             QLabel {
@@ -189,8 +204,14 @@ if __name__ == "__main__":
                 padding: 20px;
             }
         """)
+        try:
+            warmup.setFixedSize(splash.size())
+        except Exception:
+            warmup.setFixedSize(450, 250)
+        center_on_screen(warmup)
         warmup.show()
         try:
+            splash.hide()
             splash.close()
         except Exception:
             pass
