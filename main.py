@@ -137,13 +137,14 @@ if __name__ == "__main__":
     from app_window import AssameseTypingApp
     from app_workers import SetupThread
 
-    # Start the background model-copy thread now that the splash is up
+    # Start the background model-copy thread now that the splash is up.
+    # Both AppLoaderThread and ASRLoaderThread inside the window will
+    # wait for this thread to finish before loading their models.
     setup_thread = SetupThread()
     setup_thread.start()
 
-    # Create the main window — positioned OFF-SCREEN so it doesn't
-    # peek around the splash.
-    main_window = AssameseTypingApp()
+    # Create the main window — pass setup_thread so Xlit/ASR wait for it.
+    main_window = AssameseTypingApp(setup_thread=setup_thread)
     main_window.move(-10000, -10000)
     main_window.show()
     app.processEvents()

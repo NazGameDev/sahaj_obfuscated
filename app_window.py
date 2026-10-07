@@ -29,8 +29,9 @@ from app_dialogs import SettingsDialog
 
 
 class AssameseTypingApp(UIMixin, VoiceMixin, QMainWindow):
-    def __init__(self):
+    def __init__(self, setup_thread=None):
         super().__init__()
+        self.setup_thread = setup_thread
         self.setWindowTitle("সহজ-Sahaj v3.0")
         self.resize(1050, 750)
         self.settings = QSettings("NazmulDev", "SahajApp")
@@ -60,9 +61,11 @@ class AssameseTypingApp(UIMixin, VoiceMixin, QMainWindow):
         self.net_probe = None
         self._running_workers = []
 
+        # Pass setup_thread so Xlit loading waits for model copy
         self.loader_thread = AppLoaderThread(
             self.dictionary_file,
             resource_path("assamese_dictionary.txt"),
+            setup_thread=self.setup_thread,
         )
         self.loader_thread.finished_loading.connect(self.on_backend_loaded)
         self.loader_thread.error_signal.connect(self.show_engine_error)
@@ -165,7 +168,8 @@ class AssameseTypingApp(UIMixin, VoiceMixin, QMainWindow):
             "settings/preload_asr", True, type=bool
         )
         if preload and app_utils.voice_typing is not None:
-            self.asr_loader_thread = ASRLoaderThread()
+            # Pass setup_thread so ASR waits for model copy too
+            self.asr_loader_thread = ASRLoaderThread(setup_thread=self.setup_thread)
             self.asr_loader_thread.finished_loading.connect(self.on_asr_loaded)
             self.asr_loader_thread.start()
             try:

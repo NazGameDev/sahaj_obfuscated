@@ -151,12 +151,21 @@ class AppLoaderThread(QThread):
     finished_loading = pyqtSignal(object, dict, object)
     error_signal = pyqtSignal(str)
 
-    def __init__(self, dictionary_file, dict_path):
+    def __init__(self, dictionary_file, dict_path, setup_thread=None):
         super().__init__()
         self.dictionary_file = dictionary_file
         self.dict_path = dict_path
+        self.setup_thread = setup_thread
 
     def run(self):
+        # Wait for the model-copy thread to finish before loading Xlit.
+        # This prevents the "models missing" race condition on fresh installs.
+        if self.setup_thread is not None:
+            try:
+                self.setup_thread.wait()
+            except Exception:
+                pass
+
         spell_tool = None
         try:
             checker = DictionarySpellChecker(self.dict_path)
@@ -211,10 +220,22 @@ class ASRLoaderThread(QThread):
     """Loads the ASR model once at startup so voice typing is instant."""
     finished_loading = pyqtSignal(object)
 
+    def __init__(self, setup_thread=None):
+        super().__init__()
+        self.setup_thread = setup_thread
+
     def run(self):
         if app_utils.voice_typing is None:
             self.finished_loading.emit(None)
             return
+
+        # Wait for the model-copy thread to finish before loading ASR
+        if self.setup_thread is not None:
+            try:
+                self.setup_thread.wait()
+            except Exception:
+                pass
+
         try:
             transcriber = app_utils.voice_typing.load_transcriber()
             self.finished_loading.emit(transcriber)

@@ -13,14 +13,13 @@ import requests
 
 # ==================================================================
 # Shared module-level state
-# Read/write via:  import app_utils ; app_utils.voice_typing
 # ==================================================================
 session = requests.Session()
 
-voice_typing = None           # populated by main.py after splash
-typing_modes = None           # optional module
+voice_typing = None
+typing_modes = None
 HAS_TYPING_MODES = False
-HAS_XLIT = None               # populated inside AppLoaderThread
+HAS_XLIT = None
 
 
 # ==================================================================
@@ -40,20 +39,24 @@ if getattr(sys, 'frozen', False):
 # ==================================================================
 @contextmanager
 def suppress_stdout():
-    """Temporarily suppress stdout to avoid progressbar errors in frozen app."""
+    """Temporarily suppress stdout AND stderr to avoid progressbar crashes
+    in frozen windowed apps (where both are None)."""
     with open(os.devnull, 'w') as devnull:
         old_stdout = sys.stdout
+        old_stderr = sys.stderr
         sys.stdout = devnull
+        sys.stderr = devnull
         try:
             yield
         finally:
             sys.stdout = old_stdout
+            sys.stderr = old_stderr
 
 
 def setup_default_models():
     """Copy bundled models to the default location ~/.AI4Bharat_Xlit_Models/en2indic."""
     if not getattr(sys, 'frozen', False):
-        return  # only needed for bundled app
+        return
 
     target_root = os.path.join(os.path.expanduser('~'), '.AI4Bharat_Xlit_Models', 'en2indic')
     target_v1_dir = os.path.join(target_root, 'v1.0')
