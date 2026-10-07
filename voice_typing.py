@@ -10,7 +10,12 @@ import threading
 from contextlib import contextmanager
 from PyQt6.QtCore import QThread, pyqtSignal, QTimer
 
-# --- Logging helper ---
+
+# ==================================================================
+# CRITICAL: Set HuggingFace env vars BEFORE any HF library is imported
+# This must happen at module load time, not inside a function.
+# ==================================================================
+
 def log_error(msg):
     log_path = os.path.join(os.path.expanduser('~'), 'sahaj_voice_error.log')
     try:
@@ -21,6 +26,7 @@ def log_error(msg):
             f.write(msg + '\n')
     except:
         pass
+
 
 def cleanup_old_temp_files(max_age_hours=24):
     """Delete leftover Sahaj temp files from previous sessions."""
@@ -43,10 +49,11 @@ def cleanup_old_temp_files(max_age_hours=24):
     except Exception as e:
         log_error(f"Cleanup failed (non-fatal): {e}")
 
-# Run once at module import
+
 cleanup_old_temp_files(max_age_hours=24)
 
-# --- Locate the bundled ASR cache dir (but DO NOT set HF_HUB_CACHE globally) ---
+
+# --- Locate the bundled ASR cache dir ---
 _ASR_CACHE_DIR = None
 if getattr(sys, 'frozen', False):
     base_path = sys._MEIPASS
@@ -66,7 +73,42 @@ if getattr(sys, 'frozen', False):
         log_error(f"Warning: FFmpeg not found at {ffmpeg_dir}")
 
 
-# --- Import ASR ---
+# ==================================================================
+# CRITICAL FIX: Set HuggingFace env vars BEFORE importing indic_asr_onnx.
+# This ensures the library reads the correct cache path and offline mode
+# from the very first import, preventing network calls on fresh PCs.
+# ==================================================================
+if _ASR_CACHE_DIR:
+    os.environ['HF_HUB_CACHE'] = _ASR_CACHE_DIR
+    os.environ['HUGGINGFACE_HUB_CACHE'] = _ASR_CACHE_DIR
+    os.environ['TRANSFORMERS_CACHE'] = _ASR_CACHE_DIR
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
+os.environ['HF_DATASETS_OFFLINE'] = '1'
+
+
+# ---- Diagnostic: verify the bundled cache structure ----
+if _ASR_CACHE_DIR:
+    try:
+        items = os.listdir(_ASR_CACHE_DIR)
+        log_error(f"ASR cache contents: {items}")
+        for item in items:
+            if item.startswith('models--'):
+                model_dir = os.path.join(_ASR_CACHE_DIR, item)
+                snapshots_dir = os.path.join(model_dir, 'snapshots')
+                refs_dir = os.path.join(model_dir, 'refs')
+                if os.path.isdir(snapshots_dir):
+                    snapshots = os.listdir(snapshots_dir)
+                    log_error(f"  {item}: {len(snapshots)} snapshots")
+                else:
+                    log_error(f"  {item}: NO snapshots folder (cache is malformed!)")
+                if not os.path.isdir(refs_dir):
+                    log_error(f"  {item}: NO refs folder (cache is malformed!)")
+    except Exception as e:
+        log_error(f"Failed to inspect ASR cache: {e}")
+
+
+# --- Import ASR (after env vars are set) ---
 HAS_ASR = False
 ASR_IMPORT_ERROR = None
 
@@ -91,9 +133,7 @@ except Exception as e:
 
 
 # ==================================================================
-# ASR env context — sets HF_HUB_CACHE / HF_HUB_OFFLINE temporarily
-# so other libraries (ai4bharat.transliteration, transformers, etc.)
-# are NOT affected.
+# ASR env context (kept as a safety net around runtime operations)
 # ==================================================================
 @contextmanager
 def _asr_env_context():
@@ -231,7 +271,6 @@ class VoiceTypingWorker(QThread):
                 self.error.emit("Audio file not found.")
                 return
 
-            # Validate audio file
             try:
                 with wave.open(self.audio_filepath, 'rb') as wf:
                     n_frames = wf.getnframes()
@@ -246,8 +285,6 @@ class VoiceTypingWorker(QThread):
                 self.error.emit("Could not read the audio file. Please try again.")
                 return
 
-            # Everything ASR-related happens inside this context so the
-            # HF_HUB_CACHE / HF_HUB_OFFLINE env vars don't leak out.
             with _asr_env_context():
                 if self.transcriber is not None:
                     transcriber = self.transcriber
@@ -371,8 +408,8 @@ class VoiceTypingWorker(QThread):
 # ==================================================================
 def load_transcriber():
     """
-    Load IndicTranscriber once. Env vars are scoped via _asr_env_context,
-    so ai4bharat.transliteration and other HF users are unaffected.
+    Load IndicTranscriber once. Env vars are already set at module level
+    so HF_HUB_CACHE points to the bundled cache and HF_HUB_OFFLINE is on.
     """
     if not HAS_ASR:
         log_error("load_transcriber: HAS_ASR is False — skipping pre-load.")
@@ -388,7 +425,6 @@ def load_transcriber():
             log_error("Pre-loading IndicTranscriber (startup)...")
             transcriber = IndicTranscriber()
             log_error("Pre-loading IndicTranscriber: SUCCESS.")
-            # Force lazy init NOW instead of on the user's first recording
             _warm_up_transcriber(transcriber)
             return transcriber
         except Exception as e:
@@ -399,14 +435,10 @@ def load_transcriber():
             sys.stderr = old_stderr
             devnull.close()
 
+
 def _warm_up_transcriber(transcriber):
-    """
-    Run one silent inference to force indic_asr_onnx to do its
-    lazy initialization at startup, so the user's first recording
-    is instant instead of taking 10–30 seconds.
-    """
+    """Run one silent inference to force lazy initialization at startup."""
     try:
-        # 1 second of silence at 16 kHz mono
         silence = b'\x00\x00' * 16000
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tf:
             temp_path = tf.name
